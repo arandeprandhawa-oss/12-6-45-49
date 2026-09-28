@@ -1,0 +1,76 @@
+<div style="display:flex;flex-direction:column;gap:10px">
+<canvas id="cv" style="width:100%;height:420px;touch-action:none;cursor:grab;display:block"></canvas>
+<div style="display:flex;flex-wrap:wrap;gap:16px;align-items:center;font-size:14px;color:var(--text-secondary)">
+<label style="display:flex;gap:6px;align-items:center"><input type="checkbox" id="cut"> Cut in half</label>
+<label style="display:flex;gap:6px;align-items:center"><input type="checkbox" id="ghost" checked> Show full cone below z = 1</label>
+<label style="display:flex;gap:6px;align-items:center"><input type="checkbox" id="spin" checked> Auto-rotate</label>
+<span>Drag to rotate</span>
+</div>
+<div style="display:flex;flex-wrap:wrap;gap:16px;font-size:13px;color:var(--text-secondary)">
+<span><span id="k1" style="display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:6px"></span>Cone wall (outside)</span>
+<span><span id="k2" style="display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:6px"></span>Cylinder wall (inside)</span>
+<span><span id="k3" style="display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:6px"></span>Lid at z = 2 (ring)</span>
+</div>
+</div>
+<script>
+const cv=document.getElementById('cv'),ctx=cv.getContext('2d');
+function col(v){const e=document.createElement('span');e.style.color='var('+v+')';document.body.appendChild(e);const c=getComputedStyle(e).color;e.remove();const m=c.match(/[\d.]+/g)||[80,110,200];return [+m[0],+m[1],+m[2]];}
+let C={};function readC(){C={cone:col('--text-accent'),cyl:col('--text-success'),lid:col('--text-warning'),ink:col('--text-primary'),mut:col('--text-secondary')};
+document.getElementById('k1').style.background='rgb('+C.cone+')';document.getElementById('k2').style.background='rgb('+C.cyl+')';document.getElementById('k3').style.background='rgb('+C.lid+')';}
+readC();
+let th=0.6,ph=0.42,cut=false,ghost=true,spin=true;
+const TAU=Math.PI*2;
+function surf(){const S=[];const A=cut?Math.PI:TAU,a0=cut?-Math.PI/2:0;const NA=cut?18:36;
+ // cone wall r=z, z in [1,2]
+ S.push({c:'cone',al:0.55,n:[8,NA],f:(u,v)=>{const z=1+u,a=a0+v*A;return [z*Math.cos(a),z*Math.sin(a),z];}});
+ // cylinder r=1
+ S.push({c:'cyl',al:0.9,n:[8,NA],f:(u,v)=>{const z=1+u,a=a0+v*A;return [Math.cos(a),Math.sin(a),z];}});
+ // lid annulus z=2
+ S.push({c:'lid',al:0.85,n:[5,NA],f:(u,v)=>{const r=1+u,a=a0+v*A;return [r*Math.cos(a),r*Math.sin(a),2];}});
+ if(cut){ // flat cut faces at a=±90° : triangle between r=1 and r=z
+  for(const s of [-1,1])S.push({c:'lid',al:0.85,n:[6,6],f:(u,v)=>{const z=1+u,r=1+v*(z-1);return [0,s*r,z];}});
+ }
+ if(ghost)S.push({c:'mut',al:0.07,n:[6,36],f:(u,v)=>{const z=u,a=v*TAU;return [z*Math.cos(a),z*Math.sin(a),z];}});
+ return S;}
+function draw(){
+ const dpr=Math.min(devicePixelRatio||1,2),w=cv.clientWidth,h=cv.clientHeight;
+ if(cv.width!==Math.round(w*dpr)){cv.width=Math.round(w*dpr);cv.height=Math.round(h*dpr);}
+ ctx.setTransform(dpr,0,0,dpr,0,0);ctx.clearRect(0,0,w,h);
+ const ct=Math.cos(th),st=Math.sin(th),cp=Math.cos(ph),sp=Math.sin(ph),E=[cp*ct,cp*st,sp];
+ let L=[E[0]+.3,E[1]-.5,E[2]+.9];const ln=Math.hypot(...L);L=L.map(x=>x/ln);
+ const sc=Math.min(w,h)/2/2.7,cx=w/2,cy=h/2,Z0=1.1;
+ const P=p=>{const q=[p[0],p[1],p[2]-Z0];return [cx+sc*(-st*q[0]+ct*q[1]),cy-sc*(-sp*ct*q[0]-sp*st*q[1]+cp*q[2]),E[0]*q[0]+E[1]*q[1]+E[2]*q[2]];};
+ const items=[];
+ for(const s of surf()){const [nu,nv]=s.n,g=[];for(let i=0;i<=nu;i++){const r=[];for(let j=0;j<=nv;j++)r.push(s.f(i/nu,j/nv));g.push(r);}
+  for(let i=0;i<nu;i++)for(let j=0;j<nv;j++){const a=g[i][j],b=g[i+1][j],c=g[i+1][j+1],d=g[i][j+1];
+   const u=[c[0]-a[0],c[1]-a[1],c[2]-a[2]],v=[d[0]-b[0],d[1]-b[1],d[2]-b[2]];let n=[u[1]*v[2]-u[2]*v[1],u[2]*v[0]-u[0]*v[2],u[0]*v[1]-u[1]*v[0]];const nn=Math.hypot(...n);if(nn<1e-9)continue;n=n.map(x=>x/nn);
+   const I=.45+.55*Math.abs(n[0]*L[0]+n[1]*L[1]+n[2]*L[2]);const q=[a,b,c,d].map(P);
+   items.push({d:(q[0][2]+q[1][2]+q[2][2]+q[3][2])/4,q,I,c:s.c,al:s.al});}}
+ const AX=[[2.7,0,0,'x'],[0,2.7,0,'y'],[0,0,2.9,'z']];
+ for(const [ax,ay,az] of AX){const N=30;for(let s=0;s<N;s++){const p0=P([ax*s/N,ay*s/N,az*s/N]),p1=P([ax*(s+1)/N,ay*(s+1)/N,az*(s+1)/N]);items.push({d:(p0[2]+p1[2])/2+.002,line:[p0,p1]});}}
+ items.sort((a,b)=>a.d-b.d);
+ for(const it of items){
+  if(it.line){ctx.strokeStyle='rgb('+C.ink+')';ctx.lineWidth=1.2;ctx.beginPath();ctx.moveTo(it.line[0][0],it.line[0][1]);ctx.lineTo(it.line[1][0],it.line[1][1]);ctx.stroke();continue;}
+  const b=C[it.c],k=it.I;ctx.fillStyle=`rgba(${b[0]*k|0},${b[1]*k|0},${b[2]*k|0},${it.al})`;
+  ctx.strokeStyle=`rgba(${b[0]},${b[1]},${b[2]},${Math.min(1,it.al+.15)})`;ctx.lineWidth=.5;
+  ctx.beginPath();ctx.moveTo(it.q[0][0],it.q[0][1]);for(let m=1;m<4;m++)ctx.lineTo(it.q[m][0],it.q[m][1]);ctx.closePath();ctx.fill();ctx.stroke();}
+ // circles at z=1 and z=2 labels
+ ctx.fillStyle='rgb('+C.ink+')';ctx.font='italic 15px serif';
+ for(const [ax,ay,az,l] of AX){const t=P([ax*1.05,ay*1.05,az*1.05]);ctx.fillText(l,t[0]-4,t[1]+5);}
+ ctx.font='13px sans-serif';ctx.fillStyle='rgb('+C.mut+')';
+ const t2=P([0,0,2]);ctx.fillText('z = 2',t2[0]+6,t2[1]-6);const t1=P([0,0,1]);ctx.fillText('z = 1',t1[0]+6,t1[1]-6);
+ // tick dots
+ ctx.fillStyle='rgb('+C.ink+')';for(const z of [1,2]){const t=P([0,0,z]);ctx.beginPath();ctx.arc(t[0],t[1],2.5,0,TAU);ctx.fill();}
+}
+let drag=null;
+cv.addEventListener('pointerdown',e=>{drag={x:e.clientX,y:e.clientY};cv.setPointerCapture(e.pointerId);cv.style.cursor='grabbing';});
+cv.addEventListener('pointermove',e=>{if(!drag)return;th-=(e.clientX-drag.x)*.01;ph=Math.max(-.2,Math.min(1.4,ph+(e.clientY-drag.y)*.01));drag={x:e.clientX,y:e.clientY};draw();});
+cv.addEventListener('pointerup',()=>{drag=null;cv.style.cursor='grab';});
+document.getElementById('cut').onchange=e=>{cut=e.target.checked;draw();};
+document.getElementById('ghost').onchange=e=>{ghost=e.target.checked;draw();};
+document.getElementById('spin').onchange=e=>{spin=e.target.checked;};
+let last=0;function tick(t){if(spin&&!drag){th+=((t-last)||16)*.00035;draw();}last=t;requestAnimationFrame(tick);}
+window.addEventListener('resize',draw);
+matchMedia('(prefers-color-scheme: dark)').addEventListener('change',()=>{readC();draw();});
+draw();requestAnimationFrame(tick);
+</script>

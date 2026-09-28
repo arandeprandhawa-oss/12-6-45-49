@@ -1,0 +1,26 @@
+{
+    "title":  "12.6 #45-49",
+    "layout":  "tabs",
+    "tabs":  [
+                 {
+                     "label":  "Problem 45 Region 3D Cone Cylinder",
+                     "file":  "pages/problem_45_region_3d_cone_cylinder.html"
+                 },
+                 {
+                     "label":  "Problem 46 Region Between Paraboloids 3D",
+                     "file":  "pages/problem_46_region_between_paraboloids_3d.html"
+                 },
+                 {
+                     "label":  "Problem 47 Rotate Sqrt X About X Axis",
+                     "file":  "pages/problem_47_rotate_sqrt_x_about_x_axis.html"
+                 },
+                 {
+                     "label":  "Problem 48 Rotate Line Z 2Y About Z Axis",
+                     "file":  "pages/problem_48_rotate_line_z_2y_about_z_axis.html"
+                 },
+                 {
+                     "label":  "Problem 49 Equidistant Point Plane Paraboloid",
+                     "file":  "pages/problem_49_equidistant_point_plane_paraboloid.html"
+                 }
+             ]
+}

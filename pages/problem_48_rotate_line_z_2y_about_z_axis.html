@@ -1,0 +1,68 @@
+<div style="display:flex;flex-direction:column;gap:10px">
+<canvas id="cv" style="width:100%;height:420px;touch-action:none;cursor:grab;display:block"></canvas>
+<div style="display:flex;flex-wrap:wrap;gap:14px;align-items:center;font-size:14px;color:var(--text-secondary)">
+<label for="ang" style="white-space:nowrap">Rotate line by</label>
+<input type="range" id="ang" min="0" max="180" value="0" step="1" style="flex:1;min-width:160px">
+<span id="angv" style="min-width:42px;font-variant-numeric:tabular-nums">0°</span>
+<button id="play" style="font:inherit;padding:4px 12px;border-radius:6px;border:1px solid var(--border-strong);background:transparent;color:var(--text-primary);cursor:pointer">Play</button>
+</div>
+<div style="display:flex;flex-wrap:wrap;gap:16px;font-size:13px;color:var(--text-secondary)">
+<span><span id="k1" style="display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:6px"></span>Original line z = 2y (in the yz-plane)</span>
+<span><span id="k2" style="display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:6px"></span>Circles traced at z = 2 and z = −2 (radius 1)</span>
+<span>Drag to change the view</span>
+</div>
+</div>
+<script>
+const cv=document.getElementById('cv'),ctx=cv.getContext('2d');
+function col(v){const e=document.createElement('span');e.style.color='var('+v+')';document.body.appendChild(e);const c=getComputedStyle(e).color;e.remove();const m=c.match(/[\d.]+/g)||[80,110,200];return [+m[0],+m[1],+m[2]];}
+let C={};function readC(){C={surf:col('--text-accent'),curve:col('--text-danger'),ring:col('--text-warning'),ink:col('--text-primary'),mut:col('--text-secondary')};
+document.getElementById('k1').style.background='rgb('+C.curve+')';document.getElementById('k2').style.background='rgb('+C.ring+')';}
+readC();
+let th=0.6,ph=0.3,A=0;const TAU=Math.PI*2,TM=1.15;
+// rotate point (0,t,2t) about z-axis by angle a
+const S=(t,a)=>[-t*Math.sin(a),t*Math.cos(a),2*t];
+function draw(){
+ const dpr=Math.min(devicePixelRatio||1,2),w=cv.clientWidth,h=cv.clientHeight;
+ if(cv.width!==Math.round(w*dpr)){cv.width=Math.round(w*dpr);cv.height=Math.round(h*dpr);}
+ ctx.setTransform(dpr,0,0,dpr,0,0);ctx.clearRect(0,0,w,h);
+ const ct=Math.cos(th),st=Math.sin(th),cp=Math.cos(ph),sp=Math.sin(ph),E=[cp*ct,cp*st,sp];
+ let L=[E[0]+.3,E[1]-.5,E[2]+.9];const ln=Math.hypot(...L);L=L.map(x=>x/ln);
+ const sc=Math.min(w/2/2.0,h/2/2.75),cx=w/2,cy=h/2;
+ const P=p=>[cx+sc*(-st*p[0]+ct*p[1]),cy-sc*(-sp*ct*p[0]-sp*st*p[1]+cp*p[2]),E[0]*p[0]+E[1]*p[1]+E[2]*p[2]];
+ const items=[];const Ar=A*Math.PI/180;
+ if(Ar>0.001){const nu=20,nv=Math.max(2,Math.ceil(24*Ar/Math.PI));
+  for(let i=0;i<nu;i++){const t0=-TM+2*TM*i/nu,t1=-TM+2*TM*(i+1)/nu;if(Math.abs(t0+t1)<1e-9&&false)continue;
+   for(let j=0;j<nv;j++){const a0=Ar*j/nv,a1=Ar*(j+1)/nv;
+   const a=S(t0,a0),b=S(t1,a0),c=S(t1,a1),d=S(t0,a1);
+   const u=[c[0]-a[0],c[1]-a[1],c[2]-a[2]],v=[d[0]-b[0],d[1]-b[1],d[2]-b[2]];let n=[u[1]*v[2]-u[2]*v[1],u[2]*v[0]-u[0]*v[2],u[0]*v[1]-u[1]*v[0]];const nn=Math.hypot(...n);if(nn<1e-9)continue;n=n.map(q=>q/nn);
+   const I=.45+.55*Math.abs(n[0]*L[0]+n[1]*L[1]+n[2]*L[2]);const q=[a,b,c,d].map(P);
+   items.push({d:(q[0][2]+q[1][2]+q[2][2]+q[3][2])/4,q,I});}}}
+ const seg=(p0,p1,col,wd,off)=>{const a=P(p0),b=P(p1);items.push({d:(a[2]+b[2])/2+(off||.002),line:[a,b],col,wd});};
+ const AX=[[1.8,0,0,'x'],[0,1.8,0,'y'],[0,0,2.7,'z']];
+ for(const [ax,ay,az] of AX){const N=30;for(let s=-N/3;s<N;s++)seg([ax*s/N,ay*s/N,az*s/N],[ax*(s+1)/N,ay*(s+1)/N,az*(s+1)/N],s<0?C.mut:C.ink,s<0?.8:1.2);}
+ const N=40;for(let s=0;s<N;s++){const t0=-TM+2*TM*s/N,t1=-TM+2*TM*(s+1)/N;seg(S(t0,0),S(t1,0),C.curve,3,.01);if(Ar>0.001)seg(S(t0,Ar),S(t1,Ar),C.curve,1.8,.01);}
+ const M=60;for(const t of [1,-1])for(let k=0;k<M;k++){const a0=Math.PI*k/M,a1=Math.PI*(k+1)/M;const done=a1<=Ar+1e-6;seg(S(t,a0),S(t,a1),C.ring,done?2.6:1,.012);seg(S(-t,a0),S(-t,a1),C.ring,done?2.6:1,.012);}
+ seg([0,0,2],S(1,Ar),C.ring,1.5,.012);
+ items.sort((a,b)=>a.d-b.d);
+ for(const it of items){
+  if(it.line){ctx.strokeStyle='rgb('+it.col+')';ctx.lineWidth=it.wd;ctx.beginPath();ctx.moveTo(it.line[0][0],it.line[0][1]);ctx.lineTo(it.line[1][0],it.line[1][1]);ctx.stroke();continue;}
+  const b=C.surf,k=it.I;ctx.fillStyle=`rgba(${b[0]*k|0},${b[1]*k|0},${b[2]*k|0},0.5)`;ctx.strokeStyle=`rgba(${b[0]},${b[1]},${b[2]},0.6)`;ctx.lineWidth=.5;
+  ctx.beginPath();ctx.moveTo(it.q[0][0],it.q[0][1]);for(let m=1;m<4;m++)ctx.lineTo(it.q[m][0],it.q[m][1]);ctx.closePath();ctx.fill();ctx.stroke();}
+ ctx.fillStyle='rgb('+C.ink+')';ctx.font='italic 15px serif';
+ for(const [ax,ay,az,l] of AX){const t=P([ax*1.06,ay*1.06,az*1.06]);ctx.fillText(l,t[0]-4,t[1]+5);}
+ ctx.font='13px sans-serif';ctx.fillStyle='rgb('+C.mut+')';
+ for(const z of [2,-2]){const t=P([0,0,z]);ctx.fillStyle='rgb('+C.ink+')';ctx.beginPath();ctx.arc(t[0],t[1],2.5,0,TAU);ctx.fill();ctx.fillStyle='rgb('+C.mut+')';ctx.fillText('z = '+z,t[0]+7,t[1]-6);}
+}
+const ang=document.getElementById('ang'),angv=document.getElementById('angv'),play=document.getElementById('play');
+ang.oninput=()=>{A=+ang.value;angv.textContent=A+'°';draw();};
+let playing=false,last=0;
+play.onclick=()=>{playing=!playing;play.textContent=playing?'Pause':'Play';if(playing&&A>=180)A=0;last=0;requestAnimationFrame(step);};
+function step(t){if(!playing)return;const dt=last?t-last:16;last=t;A=Math.min(180,A+dt*0.05);ang.value=Math.round(A);angv.textContent=Math.round(A)+'°';draw();if(A>=180){playing=false;play.textContent='Play';return;}requestAnimationFrame(step);}
+let drag=null;
+cv.addEventListener('pointerdown',e=>{drag={x:e.clientX,y:e.clientY};cv.setPointerCapture(e.pointerId);});
+cv.addEventListener('pointermove',e=>{if(!drag)return;th-=(e.clientX-drag.x)*.01;ph=Math.max(-.6,Math.min(1.4,ph+(e.clientY-drag.y)*.01));drag={x:e.clientX,y:e.clientY};draw();});
+cv.addEventListener('pointerup',()=>{drag=null;});
+window.addEventListener('resize',draw);
+matchMedia('(prefers-color-scheme: dark)').addEventListener('change',()=>{readC();draw();});
+draw();
+</script>

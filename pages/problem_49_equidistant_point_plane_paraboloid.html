@@ -1,0 +1,61 @@
+<div style="display:flex;flex-direction:column;gap:10px">
+<canvas id="cv" style="width:100%;height:420px;touch-action:none;cursor:grab;display:block"></canvas>
+<div style="display:flex;flex-wrap:wrap;gap:14px;align-items:center;font-size:14px;color:var(--text-secondary)">
+<label for="rr" style="white-space:nowrap">Move point P along the surface</label>
+<input type="range" id="rr" min="0" max="200" value="120" style="flex:1;min-width:160px">
+</div>
+<div id="read" style="font-size:14px;color:var(--text-primary);font-variant-numeric:tabular-nums"></div>
+<div style="display:flex;flex-wrap:wrap;gap:16px;font-size:13px;color:var(--text-secondary)">
+<span><span id="k1" style="display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:6px"></span>Distance to the point (−1, 0, 0)</span>
+<span><span id="k2" style="display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:6px"></span>Distance to the plane x = 1</span>
+<span>Drag to change the view</span>
+</div>
+</div>
+<script>
+const cv=document.getElementById('cv'),ctx=cv.getContext('2d');
+function col(v){const e=document.createElement('span');e.style.color='var('+v+')';document.body.appendChild(e);const c=getComputedStyle(e).color;e.remove();const m=c.match(/[\d.]+/g)||[80,110,200];return [+m[0],+m[1],+m[2]];}
+let C={};function readC(){C={surf:col('--text-accent'),plane:col('--text-secondary'),d1:col('--text-danger'),d2:col('--text-success'),ink:col('--text-primary'),mut:col('--text-secondary')};
+document.getElementById('k1').style.background='rgb('+C.d1+')';document.getElementById('k2').style.background='rgb('+C.d2+')';}
+readC();
+let th=-1.0,ph=0.35,R=1.2;const TAU=Math.PI*2,RM=2.3,PA=0.9;
+const S=(r,a)=>[-r*r/4,r*Math.cos(a),r*Math.sin(a)];
+function draw(){
+ const dpr=Math.min(devicePixelRatio||1,2),w=cv.clientWidth,h=cv.clientHeight;
+ if(cv.width!==Math.round(w*dpr)){cv.width=Math.round(w*dpr);cv.height=Math.round(h*dpr);}
+ ctx.setTransform(dpr,0,0,dpr,0,0);ctx.clearRect(0,0,w,h);
+ const ct=Math.cos(th),st=Math.sin(th),cp=Math.cos(ph),sp=Math.sin(ph),E=[cp*ct,cp*st,sp];
+ let L=[E[0]+.3,E[1]-.5,E[2]+.9];const ln=Math.hypot(...L);L=L.map(x=>x/ln);
+ const sc=Math.min(w/2/2.4,h/2/2.5),cx=w/2,cy=h/2,X0=-0.2;
+ const P=p=>{const q=[p[0]-X0,p[1],p[2]];return [cx+sc*(-st*q[0]+ct*q[1]),cy-sc*(-sp*ct*q[0]-sp*st*q[1]+cp*q[2]),E[0]*q[0]+E[1]*q[1]+E[2]*q[2]];};
+ const items=[];
+ const quad=(a,b,c,d,col,al)=>{const u=[c[0]-a[0],c[1]-a[1],c[2]-a[2]],v=[d[0]-b[0],d[1]-b[1],d[2]-b[2]];let n=[u[1]*v[2]-u[2]*v[1],u[2]*v[0]-u[0]*v[2],u[0]*v[1]-u[1]*v[0]];const nn=Math.hypot(...n);if(nn<1e-9)return;n=n.map(q=>q/nn);
+  const I=.45+.55*Math.abs(n[0]*L[0]+n[1]*L[1]+n[2]*L[2]);const q=[a,b,c,d].map(P);items.push({d:(q[0][2]+q[1][2]+q[2][2]+q[3][2])/4,q,I,col,al});};
+ const nu=14,nv=40;
+ for(let i=0;i<nu;i++)for(let j=0;j<nv;j++){const r0=RM*i/nu,r1=RM*(i+1)/nu,a0=TAU*j/nv,a1=TAU*(j+1)/nv;quad(S(r0,a0),S(r1,a0),S(r1,a1),S(r0,a1),C.surf,0.5);}
+ const PL=2.0,np=8;for(let i=0;i<np;i++)for(let j=0;j<np;j++){const y0=-PL+2*PL*i/np,y1=-PL+2*PL*(i+1)/np,z0=-PL+2*PL*j/np,z1=-PL+2*PL*(j+1)/np;quad([1,y0,z0],[1,y1,z0],[1,y1,z1],[1,y0,z1],C.plane,0.16);}
+ const seg=(p0,p1,col,wd,off,N)=>{N=N||1;for(let s=0;s<N;s++){const a=P(p0.map((v,k)=>v+(p1[k]-v)*s/N)),b=P(p0.map((v,k)=>v+(p1[k]-v)*(s+1)/N));items.push({d:(a[2]+b[2])/2+(off||.002),line:[a,b],col,wd});}};
+ seg([-2.4,0,0],[2.2,0,0],C.ink,1.2,.002,40);seg([0,0,0],[0,2.2,0],C.ink,1.2,.002,20);seg([0,0,0],[0,0,2.2],C.ink,1.2,.002,20);
+ const Q=S(R,PA),F=[-1,0,0],Ft=[1,Q[1],Q[2]];
+ seg(Q,F,C.d1,2.6,.05,12);seg(Q,Ft,C.d2,2.6,.05,12);
+ items.sort((a,b)=>a.d-b.d);
+ for(const it of items){
+  if(it.line){ctx.strokeStyle='rgb('+it.col+')';ctx.lineWidth=it.wd;ctx.beginPath();ctx.moveTo(it.line[0][0],it.line[0][1]);ctx.lineTo(it.line[1][0],it.line[1][1]);ctx.stroke();continue;}
+  const b=it.col,k=it.I;ctx.fillStyle=`rgba(${b[0]*k|0},${b[1]*k|0},${b[2]*k|0},${it.al})`;ctx.strokeStyle=`rgba(${b[0]},${b[1]},${b[2]},${it.al+.1})`;ctx.lineWidth=.5;
+  ctx.beginPath();ctx.moveTo(it.q[0][0],it.q[0][1]);for(let m=1;m<4;m++)ctx.lineTo(it.q[m][0],it.q[m][1]);ctx.closePath();ctx.fill();ctx.stroke();}
+ const dot=(p,c,lab,dx,dy)=>{const t=P(p);ctx.fillStyle='rgb('+c+')';ctx.beginPath();ctx.arc(t[0],t[1],4.5,0,TAU);ctx.fill();if(lab){ctx.font='13px sans-serif';ctx.fillText(lab,t[0]+(dx||8),t[1]+(dy||-8));}};
+ dot(F,C.d1,'(−1, 0, 0)',-70,-10);dot(Q,C.ink,'P');dot(Ft,C.d2,'',0,0);
+ ctx.fillStyle='rgb('+C.ink+')';ctx.font='italic 15px serif';
+ for(const [p,l] of [[[2.35,0,0],'x'],[[0,2.35,0],'y'],[[0,0,2.35],'z']]){const t=P(p);ctx.fillText(l,t[0]-4,t[1]+5);}
+ const tp=P([1,PL,PL]);ctx.font='13px sans-serif';ctx.fillStyle='rgb('+C.mut+')';ctx.fillText('plane x = 1',tp[0]+6,tp[1]);
+ const d1=Math.hypot(Q[0]+1,Q[1],Q[2]),d2=Math.abs(Q[0]-1);
+ document.getElementById('read').innerHTML=`P = (${Q[0].toFixed(2)}, ${Q[1].toFixed(2)}, ${Q[2].toFixed(2)}) &nbsp;·&nbsp; to point: <b>${d1.toFixed(3)}</b> &nbsp;·&nbsp; to plane: <b>${d2.toFixed(3)}</b>`;
+}
+document.getElementById('rr').oninput=e=>{R=RM*e.target.value/200;draw();};
+let drag=null;
+cv.addEventListener('pointerdown',e=>{drag={x:e.clientX,y:e.clientY};cv.setPointerCapture(e.pointerId);});
+cv.addEventListener('pointermove',e=>{if(!drag)return;th-=(e.clientX-drag.x)*.01;ph=Math.max(-.6,Math.min(1.4,ph+(e.clientY-drag.y)*.01));drag={x:e.clientX,y:e.clientY};draw();});
+cv.addEventListener('pointerup',()=>{drag=null;});
+window.addEventListener('resize',draw);
+matchMedia('(prefers-color-scheme: dark)').addEventListener('change',()=>{readC();draw();});
+draw();
+</script>
